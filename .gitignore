@@ -1,0 +1,58 @@
+# Laravel framework files
+/node_modules
+/public/build
+/public/hot
+/public/storage
+/storage/*.key
+/storage/pail
+/vendor
+.env
+.env.backup
+.env.production
+.env.local
+.env.*.local
+.phpactor.json
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+auth.json
+npm-debug.log
+yarn-error.log
+
+# IDE
+/.fleet
+/.idea
+/.nova
+/.vscode
+/.zed
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+/storage/logs/*.log
+
+# User uploaded files
+/storage/app/public/banners
+/storage/app/public/photos
+/storage/app/public/documents
+/storage/app/public/uploads
+
+# Backup files
+*.sql
+*.sql.gz
+*.dump
+*.bak
+backup_*
+
+# Composer
+composer.phar
+
+# Misc
+.cache
+*.swp
+*.swo
+*~
