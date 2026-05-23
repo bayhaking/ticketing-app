@@ -18,10 +18,10 @@
         .btn-remove:hover { background: #ff4444; color: #fff; }
         
         /* Toggle Switch iOS Style */
-        .switch { position: relative; display: inline-block; width: 50px; height: 26px; }
+        .switch { position: relative; display: inline-block; width: 44px; height: 22px; }
         .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: .4s; border-radius: 34px; border: 1px solid var(--border); }
-        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 4px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255,255,255,0.1); transition: .4s; border-radius: 34px; border: 1px solid rgba(255,255,255,0.2); }
+        .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
         input:checked + .slider { background-color: var(--accent); border-color: var(--accent); box-shadow: var(--glow); }
         input:checked + .slider:before { transform: translateX(22px); }
 
@@ -149,15 +149,37 @@
                     <button type="button" class="btn-add" onclick="addLineupRow()" data-key="btn_add_lineup">+ TAMBAH LINEUP BARU</button>
 
                     <h3 style="color: var(--accent); font-weight: 900; margin: 2rem 0 1rem 0; border-bottom: 1px solid var(--border); padding-bottom: 10px;" data-key="sec_voucher">4. PENGATURAN VOUCHER</h3>
-                    <div class="form-group" style="background: rgba(29, 185, 84, 0.05); padding: 15px; border-radius: 10px; border: 1px solid var(--accent); display: flex; align-items: center; justify-content: space-between;">
+                    
+                    <div class="form-group" style="background: rgba(29, 185, 84, 0.05); padding: 15px; border-radius: 10px; border: 1px solid var(--accent); display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
                         <div>
-                            <label style="margin-bottom: 2px;" data-key="lbl_voucher_toggle">Aktivasi Voucher Promosi</label>
-                            <span style="font-size: 0.7rem; color: var(--text-sub);" data-key="desc_voucher_toggle">Izinkan pembeli menggunakan kode voucher diskon pada event ini.</span>
+                            <label style="margin-bottom: 2px; color: var(--accent);" data-key="lbl_voucher_toggle">Aktivasi Voucher Pada Event Ini</label>
+                            <span style="font-size: 0.7rem; color: var(--text-sub);" data-key="desc_voucher_toggle">Izinkan pembeli menggunakan kode voucher milikmu untuk event ini.</span>
                         </div>
                         <label class="switch">
                             <input type="checkbox" name="is_voucher_active" value="1" {{ old('is_voucher_active', $event->is_voucher_active ?? false) ? 'checked' : '' }}>
                             <span class="slider"></span>
                         </label>
+                    </div>
+
+                    <div style="background: var(--bg-input); padding: 15px; border-radius: 10px; border: 1px solid var(--border);">
+                        <label style="font-size: 0.75rem; font-weight: 800; color: var(--text-sub); margin-bottom: 10px; display: block; text-transform: uppercase;">Daftar Kode Voucher Kamu (Siap Pakai)</label>
+                        
+                        @if(isset($activeVouchers) && $activeVouchers->count() > 0)
+                            <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                                @foreach($activeVouchers as $v)
+                                    <div style="background: rgba(255,255,255,0.05); border: 1px dashed var(--accent); padding: 8px 12px; border-radius: 8px; font-size: 0.8rem;">
+                                        <strong style="color: var(--accent); font-family: monospace; font-size: 1rem;">{{ $v->code }}</strong>
+                                        <span style="color: var(--text-sub); margin-left: 5px;">
+                                            (Diskon {{ $v->type == 'nominal' ? 'Rp '.number_format($v->amount, 0, ',', '.') : $v->amount.'%' }})
+                                        </span>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @else
+                            <div style="color: #000; font-size: 0.8rem; font-weight: 800; display: flex; align-items: center; gap: 8px; background: #ffc107; padding: 10px; border-radius: 8px;">
+                                <span>⚠️</span> Belum ada voucher yang di-ACC. Silakan ajukan di menu KELOLA VOUCHER dan tunggu ACC dari Owner.
+                            </div>
+                        @endif
                     </div>
 
                     <button type="submit" class="btn-save" data-key="btn_submit">💾 PERBARUI SELURUH DATA</button>
@@ -238,7 +260,7 @@
                 lbl_banner: "Banner Event (Kosongkan jika tidak ingin diubah)", lbl_desc: "Deskripsi Acara",
                 sec_ticket: "2. KATEGORI TIKET", lbl_t_name: "Nama Tiket", lbl_t_price: "Harga (Rp)", lbl_t_stock: "Stok", btn_add_ticket: "+ TAMBAH KATEGORI TIKET BARU",
                 sec_lineup: "3. LINEUP / GUEST STAR", lbl_l_name: "Nama Lineup", lbl_l_ig: "Link Instagram", lbl_l_spotify: "Link Spotify", btn_add_lineup: "+ TAMBAH LINEUP BARU",
-                sec_voucher: "4. PENGATURAN VOUCHER", lbl_voucher_toggle: "Aktivasi Voucher Promosi", desc_voucher_toggle: "Izinkan pembeli menggunakan kode voucher diskon pada event ini.",
+                sec_voucher: "4. PENGATURAN VOUCHER", lbl_voucher_toggle: "Aktivasi Voucher Pada Event Ini", desc_voucher_toggle: "Izinkan pembeli menggunakan kode voucher milikmu untuk event ini.",
                 btn_submit: "💾 PERBARUI SELURUH DATA"
             },
             en: { 
@@ -265,19 +287,16 @@
             });
         }
 
-        // Listen for language change from Navbar
         document.addEventListener('DOMContentLoaded', () => {
             const savedLang = localStorage.getItem('lang') || 'id';
             setLang(savedLang);
 
-            // Mutation observer to catch language changes if triggered from layout
             const observer = new MutationObserver(() => {
                 const currentLang = localStorage.getItem('lang') || 'id';
                 setLang(currentLang);
             });
             observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
             
-            // Re-apply when user clicks language button in navbar
             document.querySelectorAll('.lang-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     setTimeout(() => setLang(localStorage.getItem('lang')), 100);

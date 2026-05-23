@@ -112,18 +112,21 @@
                 <button type="button" class="lang-btn" id="btn-en" data-lang="en">🇺🇸 EN</button>
             </div>
         </div>
+        
         <div class="user-dropdown">
             @auth
                 <button type="button" class="user-btn">{{ strtoupper(Auth::user()->name) }} ▾</button>
                 <div class="dropdown-content">
-                    <a href="/promotor/dashboard" data-key="drop_dash">📊 DASHBOARD</a>
-                    <a href="{{ route('promotor.idcard') }}">🪪 STUDIO ID CARD</a>
-                    <a href="/promotor/attendees" data-key="drop_attend">👥 KELOLA PESERTA</a>
-                    <a href="/tickets/create" data-key="drop_post">🎫 POSTING TIKET</a>
+                    <a href="/promotor/dashboard" data-key="drop_dash">DASHBOARD</a>
+                    <a href="/promotor/attendees" data-key="drop_attend">KELOLA PESERTA</a>
+                    <a href="{{ route('promotor.vouchers') }}" data-key="drop_voucher">KELOLA VOUCHER</a>
+                    <a href="{{ route('promotor.idcard') }}">STUDIO ID CARD</a>
+                    <a href="{{ route('promotor.scanner') }}" data-key="drop_scan">SCANNER TIKET</a>
+                    <a href="/tickets/create" data-key="drop_post">POSTING TIKET</a>
 
                     <div style="padding: 8px 20px; font-size: 0.6rem; color: var(--accent); font-weight: 900; letter-spacing: 1px; background: rgba(29, 185, 84, 0.05); border-bottom: 1px solid var(--border);">PENGATURAN AKUN</div>
-                    <a href="{{ route('profile.edit') }}">🆔 VERIFIKASI (KTP/NPWP)</a>
-                    <a href="{{ route('profile.edit') }}">🏦 DATA PENCAIRAN</a>
+                    <a href="{{ route('profile.edit') }}">VERIFIKASI (KTP/NPWP)</a>
+                    <a href="{{ route('profile.edit') }}">DATA PENCAIRAN</a>
 
                     <form method="POST" action="{{ route('logout') }}" style="margin: 0;">
                         @csrf
@@ -134,7 +137,7 @@
                 <a href="{{ route('login') }}" class="user-btn" style="text-decoration: none; border: 1px solid var(--border); padding: 8px 15px; border-radius: 8px;">LOGIN / DAFTAR</a>
             @endauth
         </div>
-    </div>
+        </div>
 
     <div id="imgModal" class="overlay-modal" role="dialog" aria-modal="true" aria-hidden="true">
         <span class="close-modal" style="color:white; right: 40px; top: 30px;" id="closeImgModal" role="button" tabindex="0" aria-label="Close modal">&times;</span>

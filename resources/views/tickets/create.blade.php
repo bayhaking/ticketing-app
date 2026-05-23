@@ -43,6 +43,14 @@
         .punch-left { left: -16px; }
         .punch-right { right: -16px; }
 
+        /* Toggle Switch iOS Style */
+        .switch { position: relative; display: inline-block; width: 44px; height: 22px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.3); transition: .4s; border-radius: 34px; border: 1px solid rgba(255,255,255,0.5); }
+        .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #fff; border-color: #fff; box-shadow: var(--glow); }
+        input:checked + .slider:before { transform: translateX(22px); background-color: var(--accent); }
+
         .tix-item { display: flex; align-items: center; justify-content: space-between; padding: 1.2rem; background: var(--tix-item-bg); border: 1px solid var(--accent); border-radius: 1rem; margin-bottom: 1rem; color: var(--text-main); }
         .total-stock-badge { background: var(--bg-input); border: 2px solid var(--accent); color: var(--accent); padding: 0.8rem 1.5rem; border-radius: 10px; font-weight: 900; font-size: 0.8rem; margin-bottom: 1.5rem; display: inline-block; }
 
@@ -122,7 +130,6 @@
                         <label class="field-label" data-key="l_date">Tanggal Pelaksanaan</label>
                         <input type="date" id="f_date" name="f_date" required>
 
-                        <!-- FITUR COMING SOON -->
                         <div style="margin: 1.5rem 0; background: rgba(29, 185, 84, 0.05); padding: 1.5rem; border-radius: 1rem; border: 1px dashed var(--accent);">
                             <label class="field-label" data-key="l_sales_start">⏱️ Tanggal Buka Penjualan (Opsional)</label>
                             <input type="datetime-local" id="sales_start_date" name="sales_start_date" style="margin-bottom: 0;">
@@ -181,11 +188,33 @@
                             <div class="punch-hole punch-left"></div>
                             <div class="punch-hole punch-right"></div>
                             <div class="coupon-container">
-                                <label class="field-label" style="color:#fff; opacity:0.8;" data-key="l_promo">PROMO AKTIF</label>
-                                <select id="f_promo" name="f_promo" style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.2); color:#fff; margin:0;">
-                                    <option value="0" data-key="p_none">-- Tanpa Promo --</option>
-                                    <option value="10">SPECTIVE2026 (10%)</option>
-                                </select>
+                                <label class="field-label" style="color:#fff; opacity:0.8;" data-key="l_promo">VOUCHER PROMOSI (Khusus Event Anda)</label>
+                                
+                                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; border-bottom: 1px dashed rgba(255,255,255,0.2); padding-bottom: 10px;">
+                                    <span style="font-size: 0.8rem; color: #fff; font-weight: 700;">Izinkan penggunaan kode voucher:</span>
+                                    <label class="switch">
+                                        <input type="checkbox" name="is_voucher_active" value="1" id="f_promo_toggle">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+
+                                @if(isset($activeVouchers) && $activeVouchers->count() > 0)
+                                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                        @foreach($activeVouchers as $v)
+                                            <div style="background: rgba(255,255,255,0.1); padding: 5px 10px; border-radius: 6px; font-size: 0.75rem; border: 1px solid var(--accent);">
+                                                <strong style="color: var(--accent); font-family: monospace;">{{ $v->code }}</strong>
+                                                <span style="color: #ccc; margin-left: 5px;">
+                                                    (Diskon {{ $v->type == 'nominal' ? 'Rp '.number_format($v->amount, 0, ',', '.') : $v->amount.'%' }})
+                                                </span>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                    <small style="color: rgba(255,255,255,0.6); display: block; margin-top: 10px; font-size: 0.7rem;">*Pembeli dapat menggunakan kode di atas saat checkout jika tombol diaktifkan.</small>
+                                @else
+                                    <div style="color: #000; font-size: 0.8rem; font-weight: 800; background: #ffc107; padding: 10px; border-radius: 8px;">
+                                        ⚠️ Belum ada voucher yang di-ACC. Ajukan di menu Kelola Voucher.
+                                    </div>
+                                @endif
                             </div>
                         </div>
 
@@ -226,7 +255,7 @@
                                     <div class="punch-hole punch-left" style="background-color: var(--bg-card);"></div>
                                     <div class="punch-hole punch-right" style="background-color: var(--bg-card);"></div>
                                     <div class="coupon-container">
-                                        <p style="font-size:0.7rem; color:#fff; opacity:0.7; font-weight: 800; margin-bottom: 5px;" data-key="ov_l_promo">PROMO APPLIED</p>
+                                        <p style="font-size:0.7rem; color:#fff; opacity:0.7; font-weight: 800; margin-bottom: 5px;" data-key="ov_l_promo">STATUS VOUCHER</p>
                                         <p id="ov_promo_val" style="color:#fff; font-weight:900; font-size: 1.3rem; letter-spacing: 1px;">-</p>
                                     </div>
                                 </div>
@@ -255,12 +284,12 @@
                 l_desc: "Deskripsi Lengkap",
                 l_lineup_h: "DAFTAR LINE-UP (Opsional)", l_lineup_sub: "Tambahkan artis. Jika dikosongkan, akan muncul 'Lineup belum tersedia' di halaman detail.", l_art_name: "Nama Artis / Band", btn_add_art: "+ TAMBAH ARTIS LAIN",
                 l_stock: "TOTAL STOK", l_tix_unit: "TIKET", l_t_cat: "Kategori Tiket", l_t_price: "Harga Tiket", l_t_stock: "Jumlah Stok",
-                l_promo: "PROMO AKTIF", p_none: "-- Tanpa Promo --",
+                l_promo: "VOUCHER PROMOSI (Khusus Event Anda)", p_none: "-- Tidak Aktif --",
                 opt_cat: "Pilih Kategori", m_music: "Musik", m_sport: "Olahraga", m_semi: "Seminar", m_ent: "Hiburan",
                 opt_type: "Pilih Jenis", m_pub: "Publik", m_priv: "Private",
                 btn_next: "NEXT", btn_back: "BACK", btn_add_tix: "+ TAMBAH TIKET",
                 p_name: "Contoh : Specteve 2026", p_desc: "Detail acara...", p_t_cat: "Contoh: VIP / Festival",
-                ov_l_name: "Nama Event & Tanggal", ov_l_list: "Daftar Tiket & Stok", ov_l_promo: "PROMO TERPASANG",
+                ov_l_name: "Nama Event & Tanggal", ov_l_list: "Daftar Tiket & Stok", ov_l_promo: "STATUS VOUCHER",
                 btn_publish: "Publish Tiket Anda!"
             },
             en: {
@@ -271,12 +300,12 @@
                 l_desc: "Full Description",
                 l_lineup_h: "LINE-UP LIST (Optional)", l_lineup_sub: "Add artists. If empty, 'Lineup unavailable' will show on details page.", l_art_name: "Artist / Band Name", btn_add_art: "+ ADD ANOTHER ARTIST",
                 l_stock: "TOTAL STOCK", l_tix_unit: "TICKETS", l_t_cat: "Ticket Category", l_t_price: "Ticket Price", l_t_stock: "Stock Quantity",
-                l_promo: "ACTIVE PROMO", p_none: "-- No Promo --",
+                l_promo: "PROMO VOUCHER (For Your Event)", p_none: "-- Inactive --",
                 opt_cat: "Select Category", m_music: "Music", m_sport: "Sports", m_semi: "Seminar", m_ent: "Entertainment",
                 opt_type: "Select Type", m_pub: "Public", m_priv: "Private",
                 btn_next: "NEXT", btn_back: "BACK", btn_add_tix: "+ ADD TICKET",
                 p_name: "Example : Specteve 2026", p_desc: "Event details...", p_t_cat: "Example: VIP / Festival",
-                ov_l_name: "Event Name & Date", ov_l_list: "Ticket List & Stock", ov_l_promo: "PROMO APPLIED",
+                ov_l_name: "Event Name & Date", ov_l_list: "Ticket List & Stock", ov_l_promo: "VOUCHER STATUS",
                 btn_publish: "Publish Your Tix!"
             }
         };
@@ -391,8 +420,10 @@
                 });
                 document.getElementById('ov_tix').innerHTML = listHtml || "-";
                 
-                const promoSelect = document.getElementById('f_promo'); let promoText = promoSelect.options[promoSelect.selectedIndex].text;
-                if(promoSelect.value == "0") promoText = translations[currentLang].p_none; document.getElementById('ov_promo_val').innerText = promoText;
+                // MATT FIX: Update logika Review Promo berdasarkan Toggle
+                const promoToggle = document.getElementById('f_promo_toggle'); 
+                let promoText = (promoToggle && promoToggle.checked) ? "AKTIF" : translations[currentLang].p_none; 
+                document.getElementById('ov_promo_val').innerText = promoText;
             }
         }
         

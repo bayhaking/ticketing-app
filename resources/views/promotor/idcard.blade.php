@@ -146,7 +146,7 @@
         <div class="max-w-6xl mx-auto">
 
             <h1 style="font-size: 2.5rem; font-weight: 900; font-style: italic; margin-bottom: 1rem; color: #ffffff;">
-                🪪 STUDIO ID CARD
+                STUDIO ID CARD
             </h1>
             <p style="color: var(--text-sub); font-size: 1rem; margin-bottom: 2rem;">
                 Sesuaikan desain ID card sesuai kebutuhan event Anda, atur posisi foto dan background pada area preview, lalu simpan ID card dalam format PNG resolusi tinggi (HQ).

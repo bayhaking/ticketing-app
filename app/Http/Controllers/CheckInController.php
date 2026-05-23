@@ -2,45 +2,89 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Order;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Carbon\Carbon;
 
 class CheckInController extends Controller
 {
-    public function index() {
-        return view('checkin.index');
+    /**
+     * Tampilkan halaman scanner.
+     */
+    public function index()
+    {
+        return view('promotor.scanner');
     }
 
-    public function validateTicket(Request $request) {
-        $order = Order::where('order_number', $request->order_number)
-                      ->where('status', 'success')
-                      ->with('event')
-                      ->first();
+    /**
+     * Validasi tiket — return JSON dengan detail.
+     */
+    public function validateTicket(Request $request)
+    {
+        $validated = $request->validate([
+            'order_number' => 'required|string|max:50',
+        ]);
+
+        $orderNumber = trim($validated['order_number']);
+
+        // Cari order
+        $order = Order::with(['event', 'ticketType'])
+            ->where('order_number', $orderNumber)
+            ->first();
 
         if (!$order) {
-            return response()->json(['success' => false, 'message' => 'Tiket tidak ditemukan atau belum lunas!']);
-        }
-
-        if ($order->scanned_at) {
             return response()->json([
-                'success' => false, 
-                'message' => 'Tiket SUDAH PERNAH digunakan pada ' . $order->scanned_at->format('H:i')
+                'success' => false,
+                'message' => 'Tiket Tidak Valid',
+                'detail' => 'Kode tidak ditemukan di sistem.',
             ]);
         }
 
-        // Simpan waktu scan dan SIAPA yang scan
+        // Auth check
+        $user = Auth::user();
+        if ($user->role === 'staff') {
+            if ($order->event->user_id !== $user->parent_promotor_id) {
+                return response()->json(['success' => false, 'message' => 'Bukan Event Anda']);
+            }
+        } elseif ($user->role === 'promotor') {
+            if ($order->event->user_id !== $user->id) {
+                return response()->json(['success' => false, 'message' => 'Bukan Event Anda']);
+            }
+        } else {
+            return response()->json(['success' => false, 'message' => 'Akses Ditolak'], 403);
+        }
+
+        // Status Check
+        if ($order->status !== 'success') {
+            return response()->json(['success' => false, 'message' => 'Tiket Belum Lunas']);
+        }
+
+        // Sudah pernah discan?
+        if ($order->scanned_at) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sudah Discan!',
+                'customer_name' => $order->customer_name,
+                'event_name' => $order->event->name,
+                'ticket_type' => $order->ticketType->name ?? '-',
+                'scanned_at' => Carbon::parse($order->scanned_at)->format('d M, H:i'),
+            ]);
+        }
+
+        // VALID — update scanned_at
         $order->update([
             'scanned_at' => now(),
-            'scanned_by' => Auth::id(), // ID Staff/Promotor yang login
+            'scanned_by' => $user->id,
         ]);
 
         return response()->json([
             'success' => true,
-            'message' => 'Check-in Berhasil!',
-            'attendee' => $order->customer_name,
-            'event' => $order->event->name,
-            'scanner_name' => Auth::user()->name // Munculkan nama yang scan di layar HP
+            'message' => 'Tiket Valid!',
+            'customer_name' => $order->customer_name,
+            'event_name' => $order->event->name,
+            'ticket_type' => $order->ticketType->name ?? '-',
+            'scanned_at' => now()->format('d M, H:i'),
         ]);
     }
 }
