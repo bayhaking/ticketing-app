@@ -8,9 +8,9 @@ use App\Mail\EticketMail;
 use App\Models\Event;
 use App\Models\TicketType;
 use App\Models\Order;
-use App\Models\OtpVerification;
 use App\Models\Lineup; 
-use App\Models\Voucher; // MATT FIX: Panggil model Voucher
+use App\Models\Voucher;
+use App\Models\EventView;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
@@ -25,18 +25,14 @@ class TicketController extends Controller
 
     public function create()
     {
-        // MATT FIX: Ambil voucher aktif milik promotor
         $activeVouchers = Voucher::where('user_id', Auth::id())->where('status', 'active')->get();
         return view('tickets.create', compact('activeVouchers')); 
     }
 
     public function store(Request $request)
     {
-        $imagePath = null;
-        if ($request->hasFile('f_banner')) {
-            $imagePath = $request->file('f_banner')->store('banners', 'public');
-        }
-
+        $imagePath = $request->hasFile('f_banner') ? $request->file('f_banner')->store('banners', 'public') : null;
+        
         $galleryPaths = [];
         if ($request->hasFile('f_gallery')) {
             foreach ($request->file('f_gallery') as $file) {
@@ -54,7 +50,7 @@ class TicketController extends Controller
             'description' => $request->f_desc,
             'banner' => $imagePath,
             'gallery' => $galleryPaths,
-            'promo' => 0, // Reset default karena promo sekarang pakai is_voucher_active
+            'promo' => 0,
             'total_stock' => 0, 
             'is_voucher_active' => $request->has('is_voucher_active') ? 1 : 0,
         ]);
@@ -97,6 +93,15 @@ class TicketController extends Controller
     {
         $event = Event::with(['ticketTypes', 'lineups'])->findOrFail($id);
         $event->increment('views'); 
+
+        // CATAT VIEW (Real-time Insight)
+        EventView::create([
+            'event_id' => $event->id,
+            'session_id' => session()->getId(),
+            'viewed_at' => now(),
+            'ip_hash' => hash('sha256', request()->ip()),
+            'device_type' => request()->header('User-Agent'),
+        ]);
         
         return view('tickets.show', compact('event'));
     }
@@ -108,6 +113,18 @@ class TicketController extends Controller
             'ticket_id' => 'required|exists:ticket_types,id',
             'quantity' => 'required|integer|min:1|max:5',
         ]);
+
+        // MATT FIX: Kunci pintu kalau event bukan 'upcoming'
+        $event = Event::findOrFail($request->event_id);
+        if ($event->status !== 'upcoming') {
+            return back()->with('error', 'Mohon maaf, penjualan tiket untuk event ini sudah ditutup atau telah berakhir.');
+        }
+
+        // CATAT KLIK BELI
+        EventView::where('event_id', $request->event_id)
+            ->where('session_id', session()->getId())
+            ->latest()
+            ->update(['clicked_buy_at' => now()]);
 
         session(['checkout_data' => $request->all()]);
         return redirect()->route('checkout.form');
@@ -125,27 +142,23 @@ class TicketController extends Controller
         return view('tickets.checkout', compact('ticket', 'quantity', 'subtotal'));
     }
 
-    // MATT FIX: Fungsi sendOTP() DIHAPUS karena diganti dengan pembayaran langsung.
-
     public function checkVoucher(Request $request)
     {
         $data = session('checkout_data');
         if(!$data) return response()->json(['success' => false, 'message' => 'Sesi berakhir, silahkan ulang pesanan.']);
 
         $event = Event::find($data['event_id']);
-        // Keamanan: Cek apakah promotor event ini mengaktifkan toggle voucher
         if(!$event || !$event->is_voucher_active) {
             return response()->json(['success' => false, 'message' => 'Event ini tidak mengizinkan penggunaan voucher.']);
         }
 
-        // Cek voucher (Hanya voucher milik promotor event ini yang berstatus 'active')
         $voucher = Voucher::where('code', strtoupper($request->code))
                           ->where('user_id', $event->user_id)
                           ->where('status', 'active')
                           ->first();
 
         if(!$voucher) {
-            return response()->json(['success' => false, 'message' => 'Kode Voucher tidak valid atau bukan untuk event ini.']);
+            return response()->json(['success' => false, 'message' => 'Kode Voucher tidak valid.']);
         }
 
         if($voucher->quota > 0 && $voucher->used >= $voucher->quota) {
@@ -162,7 +175,6 @@ class TicketController extends Controller
             $discount = $subtotal * ($voucher->amount / 100);
         }
 
-        // Pastikan diskon tidak melebihi harga tiket
         if($discount > $subtotal) $discount = $subtotal;
         $final = $subtotal - $discount;
 
@@ -184,7 +196,6 @@ class TicketController extends Controller
         $totalPrice = $ticketType->price * $data['quantity'];
         $discount = 0;
 
-        // Validasi Voucher Saat Eksekusi Pembayaran
         if ($request->voucher_code && $event->is_voucher_active) {
             $voucher = Voucher::where('code', strtoupper($request->voucher_code))
                               ->where('user_id', $event->user_id)
@@ -198,19 +209,18 @@ class TicketController extends Controller
                     $discount = $totalPrice * ($voucher->amount / 100);
                 }
                 if ($discount > $totalPrice) $discount = $totalPrice;
-
-                // Tambah angka pemakaian voucher
                 $voucher->increment('used');
             }
         }
 
-        $finalPrice = $totalPrice - $discount;
+        $finalPrice = max(0, $totalPrice - $discount);
         $pricePerTicket = $finalPrice / $data['quantity'];
         $baseId = 'SPX-' . strtoupper(Str::random(8));
 
         $names = $request->names; 
         $emails = $request->emails; 
 
+        $order = null;
         for ($i = 0; $i < $data['quantity']; $i++) {
             $orderNumber = $baseId . '-' . ($i + 1);
 
@@ -219,7 +229,7 @@ class TicketController extends Controller
                 'ticket_type_id' => $data['ticket_id'],
                 'customer_name' => $names[$i],
                 'customer_email' => $emails[$i],
-                'customer_phone' => $request->whatsapp, // Menggunakan WA yang diinput
+                'customer_phone' => $request->whatsapp,
                 'quantity' => 1,
                 'total_price' => $pricePerTicket,
                 'order_number' => $orderNumber,
@@ -234,6 +244,12 @@ class TicketController extends Controller
                 logger("Gagal kirim email ke: " . $emails[$i]);
             }
         }
+
+        // CATAT KONVERSI
+        EventView::where('event_id', $data['event_id'])
+            ->where('session_id', session()->getId())
+            ->latest()
+            ->update(['converted_to_order_id' => $order->id]);
 
         session()->forget('checkout_data');
 
@@ -257,24 +273,15 @@ class TicketController extends Controller
     public function edit($id)
     {
         $event = Event::with(['ticketTypes', 'lineups'])->findOrFail($id);
-
-        if ($event->user_id !== Auth::id()) {
-            abort(403, 'Aksi tidak diizinkan. Ini bukan event milikmu!');
-        }
-
-        // MATT FIX: Ambil voucher aktif milik promotor
+        if ($event->user_id !== Auth::id()) abort(403, 'Aksi tidak diizinkan.');
         $activeVouchers = Voucher::where('user_id', Auth::id())->where('status', 'active')->get();
-
         return view('promotor.event.edit', compact('event', 'activeVouchers'));
     }
 
     public function update(Request $request, $id)
     {
         $event = Event::findOrFail($id);
-
-        if ($event->user_id !== Auth::id()) {
-            abort(403, 'Aksi tidak diizinkan.');
-        }
+        if ($event->user_id !== Auth::id()) abort(403);
 
         $request->validate([
             'name' => 'required|string|max:255',
@@ -282,12 +289,10 @@ class TicketController extends Controller
             'type' => 'required|string|in:Publik,Privat', 
             'date' => 'required|date',
             'sales_start_date' => 'nullable|date',
-            'banner' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
             'description' => 'nullable|string',
         ]);
 
         $data = $request->only(['name', 'category', 'type', 'date', 'description']);
-
         $data['sales_start_date'] = $request->sales_start_date ?: null;
         $data['is_voucher_active'] = $request->has('is_voucher_active') ? 1 : 0;
 
@@ -300,7 +305,6 @@ class TicketController extends Controller
 
         $event->update($data);
 
-        $totalStock = 0;
         if($request->has('t_names')) {
             foreach($request->t_names as $key => $name) {
                 $price = str_replace('.', '', $request->t_prices[$key]);
@@ -309,37 +313,22 @@ class TicketController extends Controller
 
                 if ($ticketId) {
                     $ticket = TicketType::find($ticketId);
-                    if ($ticket) {
-                        $ticket->update(['name' => $name, 'price' => $price, 'stock' => $stock]);
-                        $totalStock += (int)$stock;
-                    }
+                    if ($ticket) $ticket->update(['name' => $name, 'price' => $price, 'stock' => $stock]);
                 } else {
-                    TicketType::create([
-                        'event_id' => $event->id,
-                        'name' => $name,
-                        'price' => $price,
-                        'stock' => $stock
-                    ]);
-                    $totalStock += (int)$stock;
+                    TicketType::create(['event_id' => $event->id, 'name' => $name, 'price' => $price, 'stock' => $stock]);
                 }
             }
         }
-        $event->update(['total_stock' => $totalStock]);
 
         if ($request->has('lineup_name')) {
             $event->lineups()->delete(); 
             foreach ($request->lineup_name as $index => $name) {
                 if (!empty($name)) {
-                    Lineup::create([
-                        'event_id' => $event->id,
-                        'name' => $name,
-                        'ig' => $request->lineup_ig[$index] ?? null,
-                        'spotify' => $request->lineup_spotify[$index] ?? null,
-                    ]);
+                    Lineup::create(['event_id' => $event->id, 'name' => $name, 'ig' => $request->lineup_ig[$index] ?? null, 'spotify' => $request->lineup_spotify[$index] ?? null]);
                 }
             }
         }
 
-        return redirect('/promotor/dashboard')->with('success', '🔥 Event dan Tiket berhasil diperbarui!');
+        return redirect('/promotor/dashboard')->with('success', 'Event diperbarui!');
     }
 }

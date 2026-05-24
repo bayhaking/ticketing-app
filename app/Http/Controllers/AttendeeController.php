@@ -15,6 +15,8 @@ use App\Mail\EticketMail;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\AttendeesExport;
 
 class AttendeeController extends Controller
 {
@@ -302,53 +304,51 @@ class AttendeeController extends Controller
      * MATT FIX: Ekspor data pembeli (Excel / CSV)
      */
     public function export(Request $request)
+{
+    $eventId = $request->query('event_id');
+
+    // Validasi event_id milik promotor ini (cegah IDOR)
+    if ($eventId) {
+        $exists = Event::where('id', (int) $eventId)
+            ->where('user_id', Auth::id())
+            ->exists();
+        if (!$exists) {
+            return back()->with('error', 'Event tidak ditemukan atau bukan milik Anda.');
+        }
+    }
+
+    $userName = preg_replace('/[^a-zA-Z0-9]/', '_', Auth::user()->name);
+    $eventSuffix = $eventId ? '_event_' . $eventId : '_semua';
+    $timestamp = now()->format('Ymd_His');
+    $filename = "SPECTIX_Peserta_{$userName}{$eventSuffix}_{$timestamp}.xlsx";
+
+    return Excel::download(
+        new AttendeesExport($eventId ? (int) $eventId : null),
+        $filename
+    );
+}
+public function destroyStaff($id)
     {
-        $userId = Auth::id();
-        $eventIds = Event::where('user_id', $userId)->pluck('id');
+        $staff = User::where('id', $id)
+            ->where('role', 'staff')
+            ->first();
 
-        $orderQuery = Order::with(['event', 'ticketType'])
-            ->whereIn('event_id', $eventIds)
-            ->where('status', 'success')
-            ->orderBy('created_at', 'desc');
-
-        if ($request->query('event_id')) {
-            $orderQuery->where('event_id', (int) $request->query('event_id'));
+        if (!$staff) {
+            return back()->with('error', 'Staff tidak ditemukan.');
         }
 
-        $orders = $orderQuery->get();
-
-        $filename = "Data_Peserta_SPECTIX_" . date('Ymd_His') . ".csv";
-        $headers = [
-            "Content-type"        => "text/csv",
-            "Content-Disposition" => "attachment; filename=$filename",
-            "Pragma"              => "no-cache",
-            "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
-            "Expires"             => "0"
-        ];
-
-        $columns = ['Order ID', 'Nama Pembeli', 'Email', 'WhatsApp', 'Event', 'Tipe Tiket', 'Harga (Rp)', 'Status Kehadiran', 'Waktu Pembelian'];
-
-        $callback = function() use($orders, $columns) {
-            $file = fopen('php://output', 'w');
-            fputcsv($file, $columns);
-
-            foreach ($orders as $order) {
-                $row = [
-                    $order->order_number,
-                    $order->customer_name,
-                    $order->customer_email,
-                    $order->customer_phone,
-                    $order->event->name ?? '-',
-                    $order->ticketType->name ?? '-',
-                    $order->total_price,
-                    $order->scanned_at ? 'Hadir (Sudah Scan)' : 'Belum Datang',
-                    $order->created_at->format('Y-m-d H:i:s')
-                ];
-                fputcsv($file, $row);
+        // Validasi: staff harus milik promotor yang sedang login
+        if (Schema::hasColumn('users', 'parent_promotor_id')) {
+            if ($staff->parent_promotor_id !== Auth::id()) {
+                return back()->with('error', 'Staff bukan milik Anda. Tidak bisa dihapus.');
             }
-            fclose($file);
-        };
+        } else {
+            return back()->with('error', 'Fitur hapus staff belum aktif. Jalankan migration dulu.');
+        }
 
-        return response()->stream($callback, 200, $headers);
+        $staffName = $staff->name;
+        $staff->delete();
+
+        return back()->with('success', "Staff {$staffName} berhasil dihapus.");
     }
 }

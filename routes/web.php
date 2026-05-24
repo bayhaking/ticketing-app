@@ -45,6 +45,13 @@ Route::middleware(['auth'])->group(function () {
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 
     // --- KHUSUS PROMOTOR ---
+
+// DASHBOARD ACTIONS (CLOSE / REOPEN / FINISH / INSIGHT)
+        Route::post('/promotor/event/{id}/close', [App\Http\Controllers\PromotorDashboardController::class, 'closeSales'])->name('promotor.event.closeSales');
+        Route::post('/promotor/event/{id}/reopen', [App\Http\Controllers\PromotorDashboardController::class, 'reopenSales'])->name('promotor.event.reopenSales');
+        Route::post('/promotor/event/{id}/finish', [App\Http\Controllers\PromotorDashboardController::class, 'finishEvent'])->name('promotor.event.finishEvent');
+        Route::get('/promotor/event/{id}/insight', [App\Http\Controllers\PromotorDashboardController::class, 'getInsight'])->name('promotor.event.insight');
+
     Route::middleware(['role:promotor'])->group(function () {
         Route::get('/promotor/event/{id}/edit', [TicketController::class, 'edit'])->name('promotor.event.edit'); 
         Route::put('/promotor/event/{id}', [TicketController::class, 'update'])->name('promotor.event.update');    
@@ -54,7 +61,9 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/promotor/event/toggle/{id}', [PromotorDashboardController::class, 'toggleStatus'])->name('promotor.event.toggle');
         Route::delete('/promotor/event/delete/{id}', [PromotorDashboardController::class, 'destroy'])->name('promotor.event.delete');
         
-        // ATTENDEES & EXPORT EXCEL
+        // ATTENDEES & EXPORT 
+        Route::post('/promotor/attendees/staff', [AttendeeController::class, 'storeStaff'])->name('promotor.staff.store');
+        Route::delete('/promotor/attendees/staff/{id}', [AttendeeController::class, 'destroyStaff'])->name('promotor.staff.destroy');
         Route::get('/promotor/attendees', [AttendeeController::class, 'index'])->name('promotor.attendees');
         Route::get('/promotor/attendees/export', [AttendeeController::class, 'export'])->name('promotor.attendees.export');
         Route::post('/promotor/attendees/guest', [AttendeeController::class, 'storeGuest'])->name('promotor.guest');

@@ -7,8 +7,11 @@ use App\Models\Event;
 use App\Models\Order;
 use App\Models\TicketType;
 use App\Models\User;
+use App\Models\Wallet;
+use App\Services\EventInsightService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
 
 class PromotorDashboardController extends Controller
@@ -16,54 +19,40 @@ class PromotorDashboardController extends Controller
     public function index(Request $request)
     {
         $userId = Auth::id();
-
-        // ============================================================
-        // FILTER: event_id (optional) — untuk chart per-event
-        // ============================================================
         $filterEventId = $request->query('event_id');
 
-        // Validasi: pastikan event_id (jika ada) milik promotor ini (cegah IDOR)
         if ($filterEventId) {
             $exists = Event::where('id', (int) $filterEventId)
                 ->where('user_id', $userId)
                 ->exists();
             if (!$exists) {
-                $filterEventId = null; // ignore filter kalau invalid
+                $filterEventId = null;
             }
         }
 
         // ============================================================
-        // 1. STATISTIK UTAMA
+        // FITUR DOMPET (WALLET) - MATT FIX
+        // ============================================================
+        $wallet = Wallet::firstOrCreate(['user_id' => $userId]);
+
+        // ============================================================
+        // STATISTIK UTAMA
         // ============================================================
         $upcomingEvents = Event::where('user_id', $userId)
-            ->where('status', 'upcoming')
+            ->whereIn('status', ['upcoming', 'live'])
             ->count();
 
         $ordersBaseQuery = Order::whereHas('event', function ($q) use ($userId) {
             $q->where('user_id', $userId);
         })->where('status', 'success');
 
-        $totalTicketsSold = (clone $ordersBaseQuery)
-            ->where('total_price', '>', 0)
-            ->sum('quantity');
-
-        $totalTransactions = (clone $ordersBaseQuery)
-            ->where('total_price', '>', 0)
-            ->count();
-
+        $totalTicketsSold = (clone $ordersBaseQuery)->where('total_price', '>', 0)->sum('quantity');
+        $totalTransactions = (clone $ordersBaseQuery)->where('total_price', '>', 0)->count();
         $totalRevenue = (clone $ordersBaseQuery)->sum('total_price');
-
-        // Total Staff — HANYA staff milik promotor ini (butuh kolom parent_promotor_id)
-        // Kalau belum ada kolom itu, sementara pakai count semua staff (TEMPORARY)
         $totalStaff = $this->getStaffCount($userId);
+        $totalGuestlist = (clone $ordersBaseQuery)->where('total_price', 0)->count();
 
-        $totalGuestlist = (clone $ordersBaseQuery)
-            ->where('total_price', 0)
-            ->count();
-
-        // ============================================================
-        // 2. CHART DATA — dengan filter event
-        // ============================================================
+        // CHART DATA
         $chartQuery = Order::whereHas('event', function ($q) use ($userId) {
                 $q->where('user_id', $userId);
             })
@@ -85,15 +74,12 @@ class PromotorDashboardController extends Controller
             ->orderBy('date', 'ASC')
             ->get();
 
-        // ============================================================
-        // 3. DISTRIBUSI JUMLAH TIKET PER TRANSAKSI
-        // ============================================================
-        // Kategorisasi: 1 tiket, 2 tiket, ..., 10+ tiket
+        // DISTRIBUSI
         $distributionQuery = Order::whereHas('event', function ($q) use ($userId) {
                 $q->where('user_id', $userId);
             })
             ->where('status', 'success')
-            ->where('total_price', '>', 0); // exclude guestlist
+            ->where('total_price', '>', 0);
 
         if ($filterEventId) {
             $distributionQuery->where('event_id', (int) $filterEventId);
@@ -109,7 +95,6 @@ class PromotorDashboardController extends Controller
             ->orderBy('quantity', 'asc')
             ->get();
 
-        // Normalisasi ke 10 bucket
         $distribution = [];
         for ($i = 1; $i <= 10; $i++) {
             $distribution[$i] = [
@@ -127,9 +112,7 @@ class PromotorDashboardController extends Controller
             $distribution[$bucket]['revenue'] += $row->revenue;
         }
 
-        // ============================================================
-        // 4. DETAIL PENJUALAN PER EVENT
-        // ============================================================
+        // EVENT DETAILS
         $events = Event::where('user_id', $userId)
             ->with([
                 'ticketTypes',
@@ -147,8 +130,11 @@ class PromotorDashboardController extends Controller
             return [
                 'id' => $event->id,
                 'name' => $event->name,
-                'status' => $event->status == 'upcoming' ? 'Aktif' : 'Selesai',
-                'views' => $event->views,
+                'status' => $event->status ?? 'upcoming', 
+                'status_label' => $this->getStatusLabel($event->status ?? 'upcoming'),
+                'sales_closed_manually' => $event->sales_closed_manually ?? false,
+                'views' => $event->views ?? 0,
+                'date' => $event->date,
                 'initial_quota' => $quota,
                 'sold' => $sold,
                 'percentage' => $quota > 0 ? round(($sold / $quota) * 100) : 0,
@@ -159,27 +145,87 @@ class PromotorDashboardController extends Controller
             ];
         });
 
-        // Untuk dropdown filter
         $eventsForFilter = $events->map(fn($e) => ['id' => $e->id, 'name' => $e->name]);
 
         return view('promotor.dashboard', compact(
             'upcomingEvents', 'totalTicketsSold', 'totalTransactions',
             'totalRevenue', 'chartData', 'eventDetails', 'totalStaff',
             'totalGuestlist', 'events', 'distribution', 'eventsForFilter',
-            'filterEventId'
+            'filterEventId', 'wallet'
         ));
     }
 
-    public function toggleStatus($id)
+    public function closeSales($id)
     {
         $event = Event::where('id', $id)
             ->where('user_id', Auth::id())
             ->firstOrFail();
 
-        $event->status = ($event->status == 'upcoming') ? 'finished' : 'upcoming';
-        $event->save();
+        if ($event->status === 'finished') {
+            return back()->with('error', 'Event sudah selesai, tidak bisa di-close lagi.');
+        }
 
-        return back()->with('success', 'Status event berhasil diubah!');
+        $event->update([
+            'status' => 'live',
+            'sales_closed_manually' => true,
+        ]);
+
+        return back()->with('success', "Penjualan tiket untuk {$event->name} sudah ditutup. Scanner tetap aktif.");
+    }
+
+    public function reopenSales($id)
+    {
+        $event = Event::where('id', $id)
+            ->where('user_id', Auth::id())
+            ->firstOrFail();
+
+        if ($event->status === 'finished') {
+            return back()->with('error', 'Event sudah selesai, tidak bisa dibuka lagi.');
+        }
+
+        $event->update([
+            'status' => 'upcoming',
+            'sales_closed_manually' => false,
+        ]);
+
+        return back()->with('success', "Penjualan tiket untuk {$event->name} sudah dibuka kembali.");
+    }
+
+    public function finishEvent($id)
+    {
+        $event = Event::where('id', $id)
+            ->where('user_id', Auth::id())
+            ->firstOrFail();
+
+        $event->update([
+            'status' => 'finished',
+            'sales_closed_manually' => true,
+        ]);
+
+        return back()->with('success', "Event {$event->name} ditandai sebagai SELESAI.");
+    }
+
+    // ============================================================
+    // MATT FIX: FUNGSI INSIGHT YANG SUDAH TERHUBUNG KE SERVICE
+    // ============================================================
+    public function getInsight($id)
+    {
+        $event = Event::where('id', $id)
+            ->where('user_id', Auth::id())
+            ->firstOrFail();
+
+        $insightData = (new EventInsightService($event))->generate();
+
+        return response()->json([
+            'event' => [
+                'id' => $event->id,
+                'name' => $event->name,
+                'date' => $event->date,
+                'status' => $event->status ?? 'upcoming',
+                'status_label' => $this->getStatusLabel($event->status ?? 'upcoming'),
+            ],
+            'insight' => $insightData,
+        ]);
     }
 
     public function destroy($id)
@@ -193,24 +239,23 @@ class PromotorDashboardController extends Controller
         return back()->with('success', 'Event berhasil dihapus secara permanen!');
     }
 
-    /**
-     * Helper untuk hitung staff milik promotor.
-     * Kalau kolom parent_promotor_id ada → pakai itu.
-     * Kalau belum ada → fallback ke total semua staff (TEMPORARY).
-     *
-     * TODO: tambah migration kolom parent_promotor_id di tabel users
-     * supaya staff bisa dipisahkan per promotor.
-     */
     private function getStaffCount($promotorId): int
     {
-        // Cek apakah kolom parent_promotor_id sudah ada di tabel users
-        if (\Schema::hasColumn('users', 'parent_promotor_id')) {
+        if (Schema::hasColumn('users', 'parent_promotor_id')) {
             return User::where('role', 'staff')
                 ->where('parent_promotor_id', $promotorId)
                 ->count();
         }
-
-        // Fallback: count semua staff (kurang aman, sementara saja)
         return User::where('role', 'staff')->count();
+    }
+
+    private function getStatusLabel(string $status): array
+    {
+        return match($status) {
+            'upcoming' => ['label' => '🟢 AKTIF', 'color' => '#1DB954', 'desc' => 'Tiket dijual'],
+            'live' => ['label' => '🔴 LIVE', 'color' => '#ff6b6b', 'desc' => 'Hari H, penjualan ditutup'],
+            'finished' => ['label' => '⚫ SELESAI', 'color' => '#a0a0a0', 'desc' => 'Event berakhir'],
+            default => ['label' => '⚪ DRAFT', 'color' => '#94a3b8', 'desc' => 'Status tidak diketahui'],
+        };
     }
 }

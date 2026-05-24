@@ -154,56 +154,62 @@
 
                 <div class="checkout-card">
                     
-                    <div id="countdown-section" style="display: {{ $isComingSoon ? 'block' : 'none' }}; text-align: center; padding: 1rem 0;">
-                        <h3 style="color: var(--accent); font-weight: 900; font-style: italic; margin-bottom: 10px; font-size: 1.5rem;" data-key="cd_title">TIKET BELUM DIBUKA!</h3>
-                        <p style="color: var(--text-sub); margin-bottom: 25px; font-weight: 600;" data-key="cd_sub">Penjualan tiket untuk event ini akan dimulai dalam:</p>
-                        
-                        <div style="display: flex; justify-content: center; gap: 10px; font-size: 1.8rem; font-weight: 900; color: var(--text-main);">
-                            <div style="background: var(--bg-input); border: 1px solid var(--border); padding: 15px 10px; border-radius: 15px; min-width: 70px; box-shadow: inset 0 4px 10px rgba(0,0,0,0.5);"><span id="cd-days">00</span><div style="font-size: 0.65rem; color: var(--accent); margin-top: 5px;" data-key="l_hari">HARI</div></div>
-                            <div style="background: var(--bg-input); border: 1px solid var(--border); padding: 15px 10px; border-radius: 15px; min-width: 70px; box-shadow: inset 0 4px 10px rgba(0,0,0,0.5);"><span id="cd-hours">00</span><div style="font-size: 0.65rem; color: var(--accent); margin-top: 5px;" data-key="l_jam">JAM</div></div>
-                            <div style="background: var(--bg-input); border: 1px solid var(--border); padding: 15px 10px; border-radius: 15px; min-width: 70px; box-shadow: inset 0 4px 10px rgba(0,0,0,0.5);"><span id="cd-mins">00</span><div style="font-size: 0.65rem; color: var(--accent); margin-top: 5px;" data-key="l_mnt">MENIT</div></div>
-                            <div style="background: var(--bg-input); border: 1px solid var(--border); padding: 15px 10px; border-radius: 15px; min-width: 70px; box-shadow: inset 0 4px 10px rgba(0,0,0,0.5);"><span id="cd-secs">00</span><div style="font-size: 0.65rem; color: var(--accent); margin-top: 5px;" data-key="l_dtk">DETIK</div></div>
+                    @if($event->status !== 'upcoming')
+                        <div style="background: rgba(255, 68, 68, 0.1); border: 1px solid #ff4444; color: #ff6b6b; padding: 1.5rem; border-radius: 12px; text-align: center; margin-top: 1rem;">
+                            <h3 style="margin: 0 0 10px; font-weight: 900; font-style: italic;">PENJUALAN DITUTUP</h3>
+                            <p style="margin: 0; font-size: 0.9rem;">Mohon maaf, penjualan tiket untuk event ini sudah ditutup atau acara telah selesai.</p>
                         </div>
-                    </div>
-
-                    <div id="checkout-section" style="display: {{ $isComingSoon ? 'none' : 'block' }};">
-                        <h3 class="section-title" data-key="h_tix">Pilih Tiket</h3>
-                        <form method="POST" action="{{ route('checkout.prepare') }}">
-                            @csrf
-                            <input type="hidden" name="event_id" value="{{ $event->id }}">
+                    @else
+                        <div id="countdown-section" style="display: {{ $isComingSoon ? 'block' : 'none' }}; text-align: center; padding: 1rem 0;">
+                            <h3 style="color: var(--accent); font-weight: 900; font-style: italic; margin-bottom: 10px; font-size: 1.5rem;" data-key="cd_title">TIKET BELUM DIBUKA!</h3>
+                            <p style="color: var(--text-sub); margin-bottom: 25px; font-weight: 600;" data-key="cd_sub">Penjualan tiket untuk event ini akan dimulai dalam:</p>
                             
-                            <div id="ticket-list">
-                                @foreach($event->ticketTypes as $ticket)
-                                    <div class="tix-option" onclick="selectTicket(this, {{ $ticket->id }}, {{ $ticket->price }})">
-                                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                                            <div class="tix-name">{{ $ticket->name }}</div>
-                                            <div class="tix-price">Rp {{ number_format($ticket->price, 0, ',', '.') }}</div>
+                            <div style="display: flex; justify-content: center; gap: 10px; font-size: 1.8rem; font-weight: 900; color: var(--text-main);">
+                                <div style="background: var(--bg-input); border: 1px solid var(--border); padding: 15px 10px; border-radius: 15px; min-width: 70px; box-shadow: inset 0 4px 10px rgba(0,0,0,0.5);"><span id="cd-days">00</span><div style="font-size: 0.65rem; color: var(--accent); margin-top: 5px;" data-key="l_hari">HARI</div></div>
+                                <div style="background: var(--bg-input); border: 1px solid var(--border); padding: 15px 10px; border-radius: 15px; min-width: 70px; box-shadow: inset 0 4px 10px rgba(0,0,0,0.5);"><span id="cd-hours">00</span><div style="font-size: 0.65rem; color: var(--accent); margin-top: 5px;" data-key="l_jam">JAM</div></div>
+                                <div style="background: var(--bg-input); border: 1px solid var(--border); padding: 15px 10px; border-radius: 15px; min-width: 70px; box-shadow: inset 0 4px 10px rgba(0,0,0,0.5);"><span id="cd-mins">00</span><div style="font-size: 0.65rem; color: var(--accent); margin-top: 5px;" data-key="l_mnt">MENIT</div></div>
+                                <div style="background: var(--bg-input); border: 1px solid var(--border); padding: 15px 10px; border-radius: 15px; min-width: 70px; box-shadow: inset 0 4px 10px rgba(0,0,0,0.5);"><span id="cd-secs">00</span><div style="font-size: 0.65rem; color: var(--accent); margin-top: 5px;" data-key="l_dtk">DETIK</div></div>
+                            </div>
+                        </div>
+
+                        <div id="checkout-section" style="display: {{ $isComingSoon ? 'none' : 'block' }};">
+                            <h3 class="section-title" data-key="h_tix">Pilih Tiket</h3>
+                            <form method="POST" action="{{ route('checkout.prepare') }}">
+                                @csrf
+                                <input type="hidden" name="event_id" value="{{ $event->id }}">
+                                
+                                <div id="ticket-list">
+                                    @foreach($event->ticketTypes as $ticket)
+                                        <div class="tix-option" onclick="selectTicket(this, {{ $ticket->id }}, {{ $ticket->price }})">
+                                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                                <div class="tix-name">{{ $ticket->name }}</div>
+                                                <div class="tix-price">Rp {{ number_format($ticket->price, 0, ',', '.') }}</div>
+                                            </div>
+                                            <div class="tix-stock"><span data-key="l_stock">Sisa Kuota</span>: {{ $ticket->stock }}</div>
                                         </div>
-                                        <div class="tix-stock"><span data-key="l_stock">Sisa Kuota</span>: {{ $ticket->stock }}</div>
-                                    </div>
-                                @endforeach
-                            </div>
-                            <input type="hidden" id="selected_ticket_id" name="ticket_id">
-                            
-                            <div class="qty-controls">
-                                <span style="color: var(--text-sub); font-weight: 800; font-size: 0.7rem; margin-left:10px;" data-key="l_qty">JUMLAH:</span>
-                                <div style="display: flex; align-items: center; gap: 12px;">
-                                    <button type="button" class="qty-btn" onclick="updateQty(-1)">-</button>
-                                    <span class="qty-val" id="qty_display" style="color: var(--text-main);">1</span>
-                                    <input type="hidden" id="qty_input" name="quantity" value="1">
-                                    <button type="button" class="qty-btn" onclick="updateQty(1)">+</button>
+                                    @endforeach
                                 </div>
-                            </div>
+                                <input type="hidden" id="selected_ticket_id" name="ticket_id">
+                                
+                                <div class="qty-controls">
+                                    <span style="color: var(--text-sub); font-weight: 800; font-size: 0.7rem; margin-left:10px;" data-key="l_qty">JUMLAH:</span>
+                                    <div style="display: flex; align-items: center; gap: 12px;">
+                                        <button type="button" class="qty-btn" onclick="updateQty(-1)">-</button>
+                                        <span class="qty-val" id="qty_display" style="color: var(--text-main);">1</span>
+                                        <input type="hidden" id="qty_input" name="quantity" value="1">
+                                        <button type="button" class="qty-btn" onclick="updateQty(1)">+</button>
+                                    </div>
+                                </div>
 
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem;">
-                                <span style="color: var(--text-sub); font-weight: 800; font-size: 0.9rem;" data-key="l_total">TOTAL BAYAR</span>
-                                <span id="total_display">Rp 0</span>
-                            </div>
-                            <button type="submit" class="btn-checkout" id="btn_submit" disabled data-key="btn_buy">CHECKOUT SEKARANG</button>
-                        </form>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem;">
+                                    <span style="color: var(--text-sub); font-weight: 800; font-size: 0.9rem;" data-key="l_total">TOTAL BAYAR</span>
+                                    <span id="total_display">Rp 0</span>
+                                </div>
+                                <button type="submit" class="btn-checkout" id="btn_submit" disabled data-key="btn_buy">CHECKOUT SEKARANG</button>
+                            </form>
+                        </div>
+                    @endif
                     </div>
-
-                </div>
             </div>
         </div>
     </div>
@@ -222,13 +228,18 @@
                 if (distance <= 0) {
                     clearInterval(cdInterval);
                     // HILANGKAN Countdown, MUNCULKAN Form Checkout!
-                    document.getElementById("countdown-section").style.display = "none";
-                    document.getElementById("checkout-section").style.display = "block";
+                    const cdSection = document.getElementById("countdown-section");
+                    const chkSection = document.getElementById("checkout-section");
+                    if(cdSection) cdSection.style.display = "none";
+                    if(chkSection) chkSection.style.display = "block";
                 } else {
-                    document.getElementById("cd-days").innerText = Math.floor(distance / (1000 * 60 * 60 * 24)).toString().padStart(2, '0');
-                    document.getElementById("cd-hours").innerText = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)).toString().padStart(2, '0');
-                    document.getElementById("cd-mins").innerText = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)).toString().padStart(2, '0');
-                    document.getElementById("cd-secs").innerText = Math.floor((distance % (1000 * 60)) / 1000).toString().padStart(2, '0');
+                    const elDays = document.getElementById("cd-days");
+                    if(elDays) {
+                        elDays.innerText = Math.floor(distance / (1000 * 60 * 60 * 24)).toString().padStart(2, '0');
+                        document.getElementById("cd-hours").innerText = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)).toString().padStart(2, '0');
+                        document.getElementById("cd-mins").innerText = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)).toString().padStart(2, '0');
+                        document.getElementById("cd-secs").innerText = Math.floor((distance % (1000 * 60)) / 1000).toString().padStart(2, '0');
+                    }
                 }
             }, 1000);
         @endif
